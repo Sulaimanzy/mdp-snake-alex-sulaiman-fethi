@@ -20,5 +20,7 @@ py ex1_demo.py --play                   # jouer au clavier (z q s d + Entrée)
 py ex2_mdp.py                           # exercice 2 : réponses et figure du MDP
 py ex3_qlearning.py play                # exercice 3 : l'IA apprend puis joue
 py ex3_qlearning.py all                 # exercice 3 : toutes les expériences (≈ 4 min sur 32 cœurs)
+py ex4_long_snake.py demo               # exercice 4 : un serpent de 5 cases se mord la queue
+py ex4_long_snake.py all                # exercice 4 : toutes les expériences (≈ 9 min, ≈ 7 Go de RAM)
 py rapport/build_pdf.py                 # régénérer le rapport PDF
 ```

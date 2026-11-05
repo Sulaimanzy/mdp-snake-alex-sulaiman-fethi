@@ -51,25 +51,26 @@ def play(player, game, n_steps):
     return rewards
 
 
-def run(gamma, n_steps, seed, eps=EPS, alpha=ALPHA):
+def run(gamma, n_steps, seed, eps=EPS, alpha=ALPHA, length=1):
     """Une partie complète avec une IA neuve (graines fixées pour la reproductibilité)."""
-    game = ShortSnake(SIZE, seed=seed)
+    game = ShortSnake(SIZE, seed=seed, length=length)
     player = GreedyPlayer(game, eps, alpha=alpha, gamma=gamma, seed=1_000_000 + seed)
     return play(player, game, n_steps)
 
 
 def _run_chunk(task):
-    gamma, n_steps, seeds, eps, alpha = task
-    return np.stack([run(gamma, n_steps, int(seed), eps, alpha) for seed in seeds])
+    gamma, n_steps, seeds, eps, alpha, length = task
+    return np.stack([run(gamma, n_steps, int(seed), eps, alpha, length) for seed in seeds])
 
 
-def run_many(pool, gamma, n_steps, n_runs, eps=EPS, alpha=ALPHA, first_seed=0):
+def run_many(pool, gamma, n_steps, n_runs, eps=EPS, alpha=ALPHA, first_seed=0, length=1):
     """Relance l'IA n_runs fois (en parallèle) ; renvoie un tableau (n_runs, n_steps)."""
     if n_runs < 1 or n_steps < 1:
         raise ValueError("il faut au moins une relance et une étape")
     seeds = np.arange(first_seed, first_seed + n_runs)
     n_chunks = min(n_runs, 4 * (os.cpu_count() or 1))
-    tasks = [(gamma, n_steps, chunk, eps, alpha) for chunk in np.array_split(seeds, n_chunks)]
+    tasks = [(gamma, n_steps, chunk, eps, alpha, length)
+             for chunk in np.array_split(seeds, n_chunks)]
     return np.concatenate(list(pool.map(_run_chunk, tasks)))
 
 
@@ -167,9 +168,18 @@ def identical_runs(rewards, reference):
 
 # --- Q3.10 : une partie de 1000 étapes --------------------------------------
 
-def q10(pool):
-    print("Q3.10 : une partie de 1000 étapes, γ = 0.5")
-    rewards = run(0.5, 1000, seed=0)
+def snake_label(length):
+    """Complément de titre pour les expériences de l'exercice 4 (serpent plus long)."""
+    return "" if length == 1 else f", serpent de {length} cases"
+
+
+def tag(question, length):
+    return question if length == 1 else f"{question} (serpent de {length} cases)"
+
+
+def q10(pool, length=1, prefix="ex3"):
+    print(tag("Q3.10", length) + " : une partie de 1000 étapes, γ = 0.5")
+    rewards = run(0.5, 1000, seed=0, length=length)
     steps = np.arange(1, len(rewards) + 1)
     print(f"  score final {rewards.sum()} ; {int((rewards == 10).sum())} étapes à +10, "
           f"{int((rewards == -10).sum())} étapes à -10")
@@ -183,16 +193,17 @@ def q10(pool):
     ax2.plot(steps, np.cumsum(rewards), color=COLORS[0.5], linewidth=1.6)
     ax2.set_title("Score cumulé (somme des récompenses)", fontsize=10, color=INK, loc="left")
     style(ax2, xlabel="étape", ylabel="score")
-    fig.suptitle("Une partie de 1000 étapes (γ = 0.5, ε = 0.1, α = 0.5)", fontsize=11, color=INK)
-    save_figure(fig, "ex3_q10_une_partie.png")
+    fig.suptitle(f"Une partie de 1000 étapes (γ = 0.5, ε = 0.1, α = 0.5{snake_label(length)})",
+                 fontsize=11, color=INK)
+    save_figure(fig, f"{prefix}_q10_une_partie.png")
 
 
 # --- Q3.11 : combien de relances ? ------------------------------------------
 
-def q11(pool):
-    print("Q3.11 : nombre de relances pour lisser le bruit (γ = 0.5, 1000 étapes)")
-    batch_a = run_many(pool, 0.5, 1000, 1000)
-    batch_b = run_many(pool, 0.5, 1000, 1000, first_seed=100_000)
+def q11(pool, length=1, prefix="ex3"):
+    print(tag("Q3.11", length) + " : nombre de relances pour lisser le bruit (γ = 0.5, 1000 étapes)")
+    batch_a = run_many(pool, 0.5, 1000, 1000, length=length)
+    batch_b = run_many(pool, 0.5, 1000, 1000, first_seed=100_000, length=length)
     window = 20
     rows = []
     fig, axes = new_figure(2, 2, figsize=(9, 5.8), sharex=True, sharey=True)
@@ -216,16 +227,16 @@ def q11(pool):
     for ax in axes[:, 0]:
         ax.set_ylabel("récompense / étape", color=MUTED, fontsize=9)
     fig.suptitle("Récompense moyenne de deux séries indépendantes de relances "
-                 "(moyenne glissante sur 20 étapes)", fontsize=10.5, color=INK)
-    save_figure(fig, "ex3_q11_relances.png")
-    save_csv("ex3_q11_relances.csv", ["relances", "ecart_rms", "total_moyen", "ic95"], rows)
+                 f"(moyenne glissante sur 20 étapes{snake_label(length)})", fontsize=10.5, color=INK)
+    save_figure(fig, f"{prefix}_q11_relances.png")
+    save_csv(f"{prefix}_q11_relances.csv", ["relances", "ecart_rms", "total_moyen", "ic95"], rows)
 
 
 # --- Q3.12 : gamma dans {0, 0.1, 0.5, 0.9, 1} --------------------------------
 
-def compare_gammas(pool, n_steps, n_runs, window, name, title):
-    results = {gamma: run_many(pool, gamma, n_steps, n_runs) for gamma in GAMMAS}
-    baseline = run_many(pool, 0.5, n_steps, n_runs, eps=1.0)
+def compare_gammas(pool, n_steps, n_runs, window, name, title, length=1):
+    results = {gamma: run_many(pool, gamma, n_steps, n_runs, length=length) for gamma in GAMMAS}
+    baseline = run_many(pool, 0.5, n_steps, n_runs, eps=1.0, length=length)
     rows = []
     for gamma, rewards in results.items():
         mean_total, ci = total_stats(rewards)
@@ -276,12 +287,15 @@ def _visit_stats(n_steps, gamma=0.5, seed=0):
             round(gamma_matters / n_steps, 4)]
 
 
-def q12(pool):
-    print(f"Q3.12 : γ dans {GAMMAS}, 1000 étapes, {N_RUNS} relances")
-    _, rows = compare_gammas(pool, 1000, N_RUNS, 50, "ex3_q12_gammas.png",
-                             f"Q-Learning, 1000 étapes, moyenne de {N_RUNS} relances")
-    save_csv("ex3_q12_gammas.csv",
+def q12(pool, length=1, prefix="ex3"):
+    print(tag("Q3.12", length) + f" : γ dans {GAMMAS}, 1000 étapes, {N_RUNS} relances")
+    _, rows = compare_gammas(pool, 1000, N_RUNS, 50, f"{prefix}_q12_gammas.png",
+                             f"Q-Learning, 1000 étapes, moyenne de {N_RUNS} relances"
+                             + snake_label(length), length=length)
+    save_csv(f"{prefix}_q12_gammas.csv",
              ["gamma", "etapes", "relances", "total_moyen", "ic95", "identiques_a_0.5"], rows)
+    if length > 1:
+        return
 
     print("  paires (état, action) mises à jour au cours d'une partie (graine 0, γ = 0.5) :")
     visits = list(pool.map(_visit_stats, (1000, 10_000, 100_000)))
@@ -307,13 +321,14 @@ def verdict(diff, ci):
     return "significatif" if abs(diff) > ci else "non significatif"
 
 
-def sweep(pool, n_steps, n_runs, gammas=SWEEP):
+def sweep(pool, n_steps, n_runs, gammas=SWEEP, length=1):
     """Balaye gamma. Comme toutes les valeurs partagent les mêmes graines, chaque valeur est
     comparée à γ = 0.5 partie par partie (écart apparié), ce qui retire le bruit commun."""
-    reference = run_many(pool, 0.5, n_steps, n_runs)
+    reference = run_many(pool, 0.5, n_steps, n_runs, length=length)
     rows, means = [], {}
     for gamma in gammas:
-        rewards = reference if gamma == 0.5 else run_many(pool, gamma, n_steps, n_runs)
+        rewards = reference if gamma == 0.5 else run_many(pool, gamma, n_steps, n_runs,
+                                                          length=length)
         mean_total, ci = total_stats(rewards)
         diff, ci_diff = paired_difference(rewards, reference)
         means[gamma] = mean_total
@@ -347,25 +362,29 @@ def plot_sweep(rows_by_horizon, name, title):
     save_figure(fig, name)
 
 
-def q13(pool):
-    print(f"Q3.13 : recherche de γ sur [0, 1] (pas 0.05), 1000 étapes, {N_RUNS} relances")
-    rows, best = sweep(pool, 1000, N_RUNS)
-    save_csv("ex3_q13_recherche.csv", SWEEP_HEADER, rows)
-    plot_sweep([("1000 étapes", rows)], "ex3_q13_recherche_gamma.png",
-               "Récompense moyenne par étape selon γ, 1000 étapes (barres : IC à 95 %)")
+def q13(pool, length=1, prefix="ex3"):
+    print(tag("Q3.13", length) + f" : recherche de γ sur [0, 1] (pas 0.05), 1000 étapes, "
+          f"{N_RUNS} relances")
+    rows, best = sweep(pool, 1000, N_RUNS, length=length)
+    save_csv(f"{prefix}_q13_recherche.csv", SWEEP_HEADER, rows)
+    plot_sweep([("1000 étapes", rows)], f"{prefix}_q13_recherche_gamma.png",
+               "Récompense moyenne par étape selon γ, 1000 étapes" + snake_label(length)
+               + " (barres : IC à 95 %)")
     return rows
 
 
-def q14(pool, rows_1000=None):
-    print(f"Q3.14 : même recherche sur 10000 étapes, {N_RUNS_LONG} relances")
-    rows, best = sweep(pool, 10_000, N_RUNS_LONG)
-    save_csv("ex3_q14_recherche_10000.csv", SWEEP_HEADER, rows)
+def q14(pool, rows_1000=None, length=1, prefix="ex3"):
+    print(tag("Q3.14", length) + f" : même recherche sur 10000 étapes, {N_RUNS_LONG} relances")
+    rows, best = sweep(pool, 10_000, N_RUNS_LONG, length=length)
+    save_csv(f"{prefix}_q14_recherche_10000.csv", SWEEP_HEADER, rows)
     if rows_1000 is None:
-        rows_1000, _ = sweep(pool, 1000, N_RUNS)
-    plot_sweep([("1000 étapes", rows_1000), ("10000 étapes", rows)], "ex3_q14_recherche_10000.png",
-               "Récompense moyenne par étape selon γ (barres : IC à 95 %)")
-    compare_gammas(pool, 10_000, N_RUNS_LONG, 500, "ex3_q14_gammas_10000.png",
-                   f"Q-Learning, 10000 étapes, moyenne de {N_RUNS_LONG} relances")
+        rows_1000, _ = sweep(pool, 1000, N_RUNS, length=length)
+    plot_sweep([("1000 étapes", rows_1000), ("10000 étapes", rows)],
+               f"{prefix}_q14_recherche_10000.png",
+               "Récompense moyenne par étape selon γ" + snake_label(length) + " (barres : IC à 95 %)")
+    compare_gammas(pool, 10_000, N_RUNS_LONG, 500, f"{prefix}_q14_gammas_10000.png",
+                   f"Q-Learning, 10000 étapes, moyenne de {N_RUNS_LONG} relances"
+                   + snake_label(length), length=length)
 
 
 # --- Pour aller plus loin : entraînements beaucoup plus longs --------------
@@ -377,8 +396,9 @@ LONG_GAMMAS = [0, 0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 0.9, 1]
 
 
 def _run_blocks(task):
-    gamma, n_steps, seed, block = task
-    return run(gamma, n_steps, seed).reshape(-1, block).mean(axis=1)
+    gamma, n_steps, seed, block, *rest = task
+    length = rest[0] if rest else 1
+    return run(gamma, n_steps, seed, length=length).reshape(-1, block).mean(axis=1)
 
 
 MAX_Q_CHECKPOINTS = (10_000, 100_000, 300_000, 1_000_000)
@@ -396,11 +416,11 @@ def _max_q(gamma, seed=0):
     return [gamma, *values]
 
 
-def long_horizon(pool):
-    print(f"Pour aller plus loin : {LONG_STEPS} étapes, {LONG_RUNS} relances")
+def long_horizon(pool, length=1, prefix="ex3"):
+    print(tag("Pour aller plus loin", length) + f" : {LONG_STEPS} étapes, {LONG_RUNS} relances")
     curves, rows = {}, []
     for gamma in LONG_GAMMAS:
-        tasks = [(gamma, LONG_STEPS, seed, LONG_BLOCK) for seed in range(LONG_RUNS)]
+        tasks = [(gamma, LONG_STEPS, seed, LONG_BLOCK, length) for seed in range(LONG_RUNS)]
         blocks = np.array(list(pool.map(_run_blocks, tasks)))   # (relances, blocs)
         curves[gamma] = blocks.mean(axis=0)
         mean_last, ci = mean_ci(blocks[:, -10:].mean(axis=1))      # 100 000 dernières étapes
@@ -409,14 +429,16 @@ def long_horizon(pool):
                      round(float(mean_last), 4), round(float(ci), 4)])
         print(f"  γ = {gamma:<4} moyenne sur 1e6 étapes {mean_total:6.3f} ± {ci_total:.3f}   "
               f"sur les 1e5 dernières {mean_last:6.3f} ± {ci:.3f}   pic {curves[gamma].max():.3f}")
-    save_csv("ex3_long_horizon.csv",
+    save_csv(f"{prefix}_long_horizon.csv",
              ["gamma", "moyenne_1e6", "ic95", "moyenne_1e5_dernieres", "ic95_dernieres"], rows)
-    max_q = list(pool.map(_max_q, (0.5, 0.9, 1)))
-    print("  max |Q| après " + ", ".join(f"{c:,}" for c in MAX_Q_CHECKPOINTS) + " étapes (graine 0) :")
-    for gamma, *values in max_q:
-        bound = f"borne 10/(1-γ) = {10 / (1 - gamma):.0f}" if gamma < 1 else "pas de borne"
-        print(f"    γ = {gamma:<4} {values}   ({bound})")
-    save_csv("ex3_max_q.csv", ["gamma", *[f"max_abs_q_{c}" for c in MAX_Q_CHECKPOINTS]], max_q)
+    if length == 1:
+        max_q = list(pool.map(_max_q, (0.5, 0.9, 1)))
+        print("  max |Q| après " + ", ".join(f"{c:,}" for c in MAX_Q_CHECKPOINTS)
+              + " étapes (graine 0) :")
+        for gamma, *values in max_q:
+            bound = f"borne 10/(1-γ) = {10 / (1 - gamma):.0f}" if gamma < 1 else "pas de borne"
+            print(f"    γ = {gamma:<4} {values}   ({bound})")
+        save_csv("ex3_max_q.csv", ["gamma", *[f"max_abs_q_{c}" for c in MAX_Q_CHECKPOINTS]], max_q)
 
     fig, (ax1, ax2) = new_figure(1, 2, figsize=(11, 4.4))
     steps = np.arange(1, LONG_STEPS // LONG_BLOCK + 1) * LONG_BLOCK
@@ -431,9 +453,10 @@ def long_horizon(pool):
                  color="#2a78d6", marker="o", markersize=4, linewidth=1.4, capsize=2)
     ax2.set_title("Performance sur les 100 000 dernières étapes", fontsize=10, color=INK, loc="left")
     style(ax2, "facteur d'actualisation γ", "récompense moyenne par étape")
-    fig.suptitle(f"Q-Learning sur 1 000 000 d'étapes, moyenne de {LONG_RUNS} relances",
-                 fontsize=11, color=INK)
-    save_figure(fig, "ex3_long_horizon.png")
+    fig.suptitle(f"Q-Learning sur 1 000 000 d'étapes, moyenne de {LONG_RUNS} relances"
+                 + snake_label(length), fontsize=11, color=INK)
+    save_figure(fig, f"{prefix}_long_horizon.png")
+    return curves, rows
 
 
 # --- Q3.9 : regarder l'IA jouer ----------------------------------------------

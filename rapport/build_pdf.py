@@ -100,6 +100,10 @@ table { border-collapse: collapse; margin: 0.6em 0; break-inside: avoid; }
 th, td { border: 1px solid #d0d7de; padding: 4px 8px; text-align: left; vertical-align: top; }
 th { background: #f0f3f7; }
 img { max-width: 100%; break-inside: avoid; }
+.fig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin: 0.6em 0; }
+.fig-grid figure { margin: 0; break-inside: avoid; }
+.fig-grid img { width: 100%; }
+.fig-grid figcaption { font-size: 8.5pt; color: #57606a; text-align: center; }
 .formula {
   text-align: center; font-size: 12pt; margin: 0.8em 0; padding: 8px;
   background: #f4f7fb; border: 1px solid #c9d3e0; border-radius: 4px;

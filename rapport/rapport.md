@@ -4,7 +4,7 @@
 <div class="cover-course">Apprentissage<br>par renforcement</div>
 <div class="cover-title">TP MDP : Snake</div>
 <div class="cover-subtitle">Processus de décision markoviens et Q-Learning</div>
-<div class="cover-scope">Rapport - Exercices 1 à 3</div>
+<div class="cover-scope">Rapport final - Exercices 1 à 4, bonus inclus</div>
 </div>
 <div class="cover-authors">
 RUSESCU Daniel Alexandru<br>
@@ -43,6 +43,8 @@ py ex1_demo.py --play                   # exercice 1 : jouer au clavier (z q s d
 py ex2_mdp.py                           # exercice 2 : réponses calculées + figure du MDP
 py ex3_qlearning.py play                # exercice 3 : l'IA apprend puis on la regarde jouer
 py ex3_qlearning.py all                 # exercice 3 : toutes les expériences (≈ 4 min sur 32 cœurs)
+py ex4_long_snake.py demo               # exercice 4 : un serpent de 5 cases se mord la queue
+py ex4_long_snake.py all                # exercice 4 : toutes les expériences (≈ 9 min, ≈ 7 Go de RAM)
 py rapport/build_pdf.py                 # régénère ce rapport en PDF
 ```
 
@@ -61,10 +63,12 @@ Fichiers :
 | `ex2_mdp.py` | réponses de l'exercice 2 et figure `rapport/figures/ex2_mdp.png` |
 | `greedy_player.py` | joueur Q-Learning ε-greedy (repris du TP Bandit manchot) |
 | `ex3_qlearning.py` | programme principal et expériences de l'exercice 3 |
-| `resultats/*.csv` | résultats chiffrés des expériences de l'exercice 3 |
+| `ex4_long_snake.py` | expériences de l'exercice 4 (serpent plus long) |
+| `resultats/*.csv` | résultats chiffrés des expériences des exercices 3 et 4 |
 | `tests/test_snake.py` | tests unitaires de `ShortSnake` |
 | `tests/test_mdp.py` | tests du modèle MDP (comptages, probabilités, cohérence avec le jeu) |
 | `tests/test_qlearning.py` | tests de `save_state`/`restore_state`, du joueur et du programme principal |
+| `tests/test_long_snake.py` | tests du serpent de plusieurs cases (jeu, modèle, comptage, joueur) |
 | `rapport/rapport.md` | source de ce rapport |
 | `rapport/build_pdf.py` | conversion du rapport en PDF (Markdown → HTML → PDF via Edge ou Chrome) |
 
@@ -74,6 +78,10 @@ Fichiers :
 
 Convention : les coordonnées sont des tuples `(ligne, colonne)`, `(0, 0)` étant le
 coin en haut à gauche. Les directions sont les chaînes `UP`, `DOWN`, `LEFT`, `RIGHT`.
+
+La classe a ensuite été étendue à l'exercice 4 (serpent de plusieurs cases). Les
+extraits ci-dessous sont ceux du code final ; les ajouts de l'exercice 4 sont signalés
+en commentaire et n'interviennent pas pour un serpent d'une case.
 
 ```python
 EMPTY, SNAKE, FRUIT = 0, 1, 2
@@ -92,12 +100,13 @@ FRUIT_REWARD = 10
 
 ```python
 class ShortSnake:
-    def __init__(self, size=10, seed=None):
+    def __init__(self, size=10, seed=None, length=1):
         if isinstance(size, int):
             size = (size, size)
         self.n_rows, self.n_cols = size
         if self.n_rows < 1 or self.n_cols < 1 or self.n_rows * self.n_cols < 2:
             raise ValueError("la grille doit contenir au moins 2 cases")
+        ...   # longueur du serpent (exercice 4)
         self.grid = [[EMPTY] * self.n_cols for _ in range(self.n_rows)]
         self.rng = random.Random(seed)
 ```
@@ -169,11 +178,16 @@ le serpent.
         d_row, d_col = DIRECTIONS[self.snake_dir]
         row, col = self.snake_pos[0] + d_row, self.snake_pos[1] + d_col
         reward = 0
-        ...
-        self._set_cell(self.snake_pos, EMPTY)
-        self.snake_pos = (row, col)
+        ...   # bord franchi (question 1.6)
+
+        new_head = (row, col)
+        if self.body:
+            ...   # le corps suit la tête (exercice 4)
+        else:
+            self._set_cell(self.snake_pos, EMPTY)
+        self.snake_pos = new_head
         self._set_cell(self.snake_pos, SNAKE)
-        ...
+        ...   # fruit mangé (question 1.7)
         self.score += reward
         return reward
 ```
@@ -217,15 +231,17 @@ franchit un bord et tombe sur le fruit, les deux récompenses s'additionnent
 
 ```python
 HEAD_SYMBOL = {UP: "^", DOWN: "v", LEFT: "<", RIGHT: ">"}
+BODY_SYMBOL = "o"   # exercice 4
 CELL_SYMBOL = {EMPTY: ".", FRUIT: "*"}
 
     def __str__(self):
         border = "+" + "-" * self.n_cols + "+"
         lines = [border]
-        for row in self.grid:
+        for r, row in enumerate(self.grid):
             cells = (
-                HEAD_SYMBOL[self.snake_dir] if cell == SNAKE else CELL_SYMBOL[cell]
-                for cell in row
+                (HEAD_SYMBOL[self.snake_dir] if (r, c) == self.snake_pos else BODY_SYMBOL)
+                if cell == SNAKE else CELL_SYMBOL[cell]
+                for c, cell in enumerate(row)
             )
             lines.append("|" + "".join(cells) + "|")
         lines.append(border)
@@ -290,7 +306,10 @@ Q2.6  récompenses possibles : [-10, 0, 10]
 
 ```python
 def state_of(game):
-    """État du MDP pour une partie en cours : (tête, direction, fruit)."""
+    """État du MDP pour une partie en cours : (tête, direction, fruit), plus le corps pour
+    un serpent de plusieurs cases."""
+    if getattr(game, "body", None):   # serpent de plusieurs cases (exercice 4)
+        return game.save_state()
     return (game.snake_pos, game.snake_dir, game.fruit_pos)
 ```
 
@@ -479,11 +498,14 @@ noir est une action, chaque flèche porte « probabilité, récompense ».
 
 ```python
     def save_state(self):
-        """Renvoie l'état actuel du jeu : (tête, direction, fruit).
+        """Renvoie l'état actuel du jeu : (tête, direction, fruit), plus le corps
+        (tuple des cases, du cou à la queue) pour un serpent de longueur ≥ 2.
 
         C'est l'état du MDP (exercice 2) : le score n'en fait pas partie, c'est la
         somme des récompenses déjà reçues.
         """
+        if self.body:   # (exercice 4)
+            return (self.snake_pos, self.snake_dir, self.fruit_pos, tuple(self.body))
         return (self.snake_pos, self.snake_dir, self.fruit_pos)
 ```
 
@@ -513,18 +535,28 @@ rien apprendre.
         Toutes les vérifications ont lieu avant la moindre modification du jeu.
         """
         try:
-            head, direction, fruit = state
+            if self.length == 1:
+                head, direction, fruit = state
+                body = ()
+            else:   # serpent de plusieurs cases (exercice 4)
+                head, direction, fruit, body = state
+                body = tuple(body)
         except (TypeError, ValueError):
             raise ValueError(f"état invalide : {state!r}") from None
         head, fruit = self._as_cell(head), self._as_cell(fruit)
+        body = tuple(self._as_cell(cell) for cell in body)
         if not isinstance(direction, str) or direction not in DIRECTIONS:
             raise ValueError(f"direction inconnue : {direction!r}")
-        if head == fruit:
+        if fruit == head or fruit in body:
             raise ValueError("le fruit ne peut pas être sous le serpent")
+        if body:
+            self._check_body(head, direction, body)   # exercice 4
 
         self.grid = [[EMPTY] * self.n_cols for _ in range(self.n_rows)]
         self.snake_pos, self.snake_dir, self.fruit_pos = head, direction, fruit
-        self._set_cell(head, SNAKE)
+        self.body = deque(body)
+        for cell in (head, *body):
+            self._set_cell(cell, SNAKE)
         self._set_cell(fruit, FRUIT)
 ```
 
@@ -1092,3 +1124,417 @@ Sur un entraînement long, γ devient décisif :
 La réponse aux questions 12 à 14 dépend donc de la durée d'entraînement : γ n'a pas
 d'effet significatif sur 1000 et 10 000 étapes, et un petit γ (0,05 à 0,3) est le
 meilleur une fois que l'agent a assez joué pour revoir les mêmes états.
+
+---
+
+## Exercice 4 - (Bonus) Snake plus long
+
+Tout le code de l'exercice 4 est dans `snake.py` (paramètre `length`), `mdp.py`
+(modèle et comptage) et `ex4_long_snake.py` (expériences). Le serpent ne grandit
+toujours pas : sa longueur L est fixée à la création de la partie.
+
+### Question 4.1 - État d'un serpent de 2 cases
+
+*Travail collectif*
+
+```python
+    def save_state(self):
+        """Renvoie l'état actuel du jeu : (tête, direction, fruit), plus le corps
+        (tuple des cases, du cou à la queue) pour un serpent de longueur ≥ 2.
+        ...
+        """
+        if self.body:
+            return (self.snake_pos, self.snake_dir, self.fruit_pos, tuple(self.body))
+        return (self.snake_pos, self.snake_dir, self.fruit_pos)
+```
+
+Pour un serpent de 2 cases, l'état contient :
+
+- la **position de la tête** ;
+- la **position de la seconde case** (le cou) ;
+- la **position du fruit**.
+
+La direction n'apporte plus d'information : le cou est toujours la case d'où vient la
+tête, donc la direction se déduit de la tête et du cou, et inversement, dès que chaque
+côté de la grille fait au moins 3 cases (sur un côté de 2, monter et descendre mènent
+à la même case). Nous la
+gardons dans le tuple parce que `actions(state)` la lit en `state[1]`, mais elle ne
+multiplie pas le nombre d'états. Pour L ≥ 3, il faut toutes les cases du corps : leur
+disposition dépend des derniers virages, et elle détermine les cases libres pour le
+fruit et, à partir de 5 cases, les auto-intersections.
+
+### Question 4.2 - Nombre d'états avec un serpent de 2 cases
+
+*Travail collectif*
+
+```python
+def body_shapes(length):
+    """Formes du serpent : directions des déplacements, de la tête vers la queue, sans
+    demi-tour entre deux déplacements successifs. La première est la direction courante."""
+    shapes = [(d,) for d in DIRECTIONS]
+    for _ in range(length - 2):
+        shapes = [s + (d,) for s in shapes for d in DIRECTIONS if d != OPPOSITE[s[-1]]]
+    return shapes
+
+
+def n_long_states(n_rows, n_cols, length):
+    """|S| = N·M positions de tête × somme, sur les formes du corps, des cases libres
+    pour le fruit (N·M − nombre de cases occupées par le serpent).
+
+    Valable quand chaque côté de la grille fait au moins `length` cases (condition imposée
+    par ShortSnake) : deux formes différentes donnent alors deux serpents différents."""
+    n_cells = n_rows * n_cols
+    head = (0, 0)   # le décompte ne dépend pas de la position de la tête (grille torique)
+    return n_cells * sum(
+        n_cells - len(set(snake_cells(head, shape, length, (n_rows, n_cols))))
+        for shape in body_shapes(length)
+    )
+```
+
+Pour un serpent de 2 cases : N·M positions de la tête, 4 directions (qui fixent le cou),
+et N·M − 2 cases libres pour le fruit.
+
+<p class="formula">|S| = 4 · N · M · (N · M − 2)</p>
+
+**Pour une grille 10 × 10 : 4 × 100 × 98 = 39 200 états**, un peu moins que les 39 600
+du serpent d'une case. La seconde case n'ajoute aucune information, puisqu'elle se
+déduit de la direction, mais elle retire une case au fruit.
+
+Le comptage est vérifié par le code (`py ex4_long_snake.py q2`). Le contrôle
+indépendant est l'accessibilité : sur de petites grilles, un parcours en largeur du
+modèle (lui-même vérifié contre le jeu par les tests) part de l'état initial et atteint
+exactement les états comptés, ni plus ni moins (`resultats/ex4_accessibilite.csv`) :
+
+| Grille | Longueur | États comptés (`n_long_states`) | États atteints depuis l'état initial |
+|---|---|---|---|
+| 4 × 4 | 2 | 896 | 896 |
+| 5 × 5 | 2 | 2 300 | 2 300 |
+| 4 × 4 | 3 | 2 496 | 2 496 |
+| 4 × 5 | 4 | 11 520 | 11 520 |
+| 5 × 5 | 5 | 54 200 | 54 200 |
+
+Pour L = 2, les deux premières lignes valent bien 4 · 16 · 14 = 896 et 4 · 25 · 23 = 2 300.
+
+### Question 4.3 - Serpent de 2 cases (et plus) dans `ShortSnake`
+
+*Travail collectif*
+
+```python
+    def __init__(self, size=10, seed=None, length=1):
+        ...
+        if length < 1 or length >= self.n_rows * self.n_cols or (
+                length > 1 and length > min(self.n_rows, self.n_cols)):
+            raise ValueError("longueur du serpent incompatible avec la grille")
+        self.length = length
+        ...
+        # corps : les cases derrière la tête, de la plus proche à la queue
+        row, col = self.snake_pos
+        self.body = deque((row, (col - i) % self.n_cols) for i in range(1, length))
+        for cell in self.body:
+            self._set_cell(cell, SNAKE)
+        self.self_hits = 0   # nombre d'auto-intersections
+
+    def move(self, direction=None):
+        ...
+        new_head = (row, col)
+        if self.body:
+            self.body.appendleft(self.snake_pos)   # l'ancienne tête devient le cou
+            tail = self.body.pop()                 # la queue avance
+            if tail not in self.body:              # case encore occupée si le corps se croise
+                self._set_cell(tail, EMPTY)
+            # auto-intersection : la tête entre dans son propre corps
+            if new_head in self.body:
+                reward += SELF_PENALTY
+                self.self_hits += 1
+        else:
+            self._set_cell(self.snake_pos, EMPTY)
+        self.snake_pos = new_head
+        self._set_cell(self.snake_pos, SNAKE)
+        ...
+```
+
+Nous avons directement implémenté une longueur L quelconque. Le corps est une file
+(`deque`) : à chaque pas, l'ancienne tête devient le cou et la dernière case est
+libérée. Pour L = 1, le code suit exactement le chemin des exercices 1 à 3. Les
+résultats de l'exercice 3 sont identiques au chiffre près (−870 pour la partie de la
+question 3.10).
+
+`restore_state` vérifie en plus que le corps a la bonne longueur, que le cou est juste
+derrière la tête, que chaque case du corps touche la suivante et que le corps ne
+contient pas de demi-tour (`_check_body`) : seuls les états que le jeu peut produire
+sont acceptés. Un serpent de L ≥ 2 cases ne peut pas être plus long que le petit côté de
+la grille ; sinon, en ligne droite, il pourrait se recouvrir en passant le bord, et deux
+corps différents pourraient occuper les mêmes cases. Le
+modèle `long_transitions` de `mdp.py` généralise la dynamique de l'exercice 2. Comme
+pour l'exercice 2, un test joue des coups au hasard depuis des états quelconques et
+vérifie que le jeu donne toujours un résultat prévu par le modèle
+(`tests/test_long_snake.py`, 18 tests).
+
+`py ex4_long_snake.py demo` montre l'auto-intersection d'un serpent de 5 cases, qui
+fait un carré et se mord la queue :
+
+```text
+État initial       move(DOWN) -> +0   move(LEFT) -> +0   move(UP) -> -10
++--------+         +--------+         +--------+         +--------+
+|.......*|         |.......*|         |.......*|         |.......*|
+|........|         |........|         |........|         |........|
+|........|         |........|         |........|         |........|
+|oooo>...|         |.oooo...|         |..ooo...|         |...^o...|
+|........|         |....v...|         |...<o...|         |...oo...|
+|........|         |........|         |........|         |........|
++--------+         +--------+         +--------+         +--------+
+```
+
+(Les grilles, affichées l'une sous l'autre par le programme, sont mises côte à côte
+ici.)
+
+### Question 4.4 - Modifications de `GreedyPlayer`
+
+*Travail collectif*
+
+```python
+    def _greedy_action(self, state):                                    # greedy_player.py
+        ...
+        valeurs = [(action, self._value(state, action)) for action in actions(state)]
+        ...
+
+
+def actions(state):                                                     # mdp.py
+    ...
+    return _LEGAL_ACTIONS[state[1]]
+```
+
+**Aucune modification n'est nécessaire.** Le joueur ne lit l'état qu'à travers
+`game.save_state()` et ne s'en sert que de deux façons : comme clé du dictionnaire Q,
+ce qui marche pour n'importe quel tuple hachable, et pour obtenir les actions
+possibles, qui ne dépendent que de la direction `state[1]`, placée au même endroit
+quelle que soit la longueur. Le test
+`test_player_with_long_snake` fait jouer le même `GreedyPlayer` avec un serpent de
+5 cases : les clés du tableau Q sont bien des états à 4 éléments, et toutes les
+actions apprises sont légales.
+
+### Question 4.5 - Les graphiques de l'exercice 3 pour un serpent de 2 cases
+
+*Travail collectif*
+
+```python
+def q5(pool):
+    ex3.q10(pool, length=2, prefix="ex4")
+    ex3.q11(pool, length=2, prefix="ex4")
+    ex3.q12(pool, length=2, prefix="ex4")
+    rows_1000 = ex3.q13(pool, length=2, prefix="ex4")
+    ex3.q14(pool, rows_1000, length=2, prefix="ex4")
+    ex3.long_horizon(pool, length=2, prefix="ex4")
+```
+
+Les fonctions de l'exercice 3 prennent un paramètre `length`. Les graphiques sont donc
+produits par exactement le même code, avec les mêmes graines, les mêmes relances et les
+mêmes hyperparamètres (ε = 0,1, α = 0,5). Seule la longueur du serpent change
+(`py ex4_long_snake.py q5`, résultats dans `resultats/ex4_*.csv`).
+
+<div class="fig-grid">
+<figure><img src="figures/ex4_q10_une_partie.png" alt="Une partie de 1000 étapes"><figcaption>Une partie de 1000 étapes (comme 3.10)</figcaption></figure>
+<figure><img src="figures/ex4_q11_relances.png" alt="Nombre de relances"><figcaption>Nombre de relances (comme 3.11)</figcaption></figure>
+<figure><img src="figures/ex4_q12_gammas.png" alt="Cinq valeurs de γ sur 1000 étapes"><figcaption>Cinq valeurs de γ, 1000 étapes (comme 3.12)</figcaption></figure>
+<figure><img src="figures/ex4_q13_recherche_gamma.png" alt="Recherche de γ sur 1000 étapes"><figcaption>Recherche de γ, 1000 étapes (comme 3.13)</figcaption></figure>
+<figure><img src="figures/ex4_q14_recherche_10000.png" alt="Recherche de γ sur 1000 et 10 000 étapes"><figcaption>Recherche de γ, 10 000 étapes (comme 3.14)</figcaption></figure>
+<figure><img src="figures/ex4_q14_gammas_10000.png" alt="Cinq valeurs de γ sur 10 000 étapes"><figcaption>Cinq valeurs de γ, 10 000 étapes (comme 3.14)</figcaption></figure>
+</div>
+
+![Serpent de 2 cases sur un million d'étapes](figures/ex4_long_horizon.png)
+
+| Graphique | Serpent de 1 case (exercice 3) | Serpent de 2 cases |
+|---|---|---|
+| une partie de 1000 étapes (graine 0) | −870 | −570 |
+| écart RMS entre deux séries de 1000 relances | 0,033 | 0,035 |
+| 1000 étapes, γ > 0 (1000 relances) | −829,5 ± 7,1 | −834,0 ± 7,2 |
+| 1000 étapes, écart apparié γ = 0 / γ = 0,5 | −0,13 ± 0,26 | −0,10 ± 0,15 |
+| 1000 étapes, joueur aléatoire | −894,9 ± 7,9 | −895,8 ± 7,9 |
+| 10 000 étapes, γ > 0 (500 relances) | −8114,4 ± 30,0 | −8096,8 ± 30,7 |
+| 10 000 étapes, écart apparié γ = 0 / γ = 0,5 | −0,92 ± 12,40 | +0,10 ± 13,99 |
+| 10⁶ étapes, meilleurs γ (100 000 dernières étapes) | 0,948 (γ de 0,05 à 0,3) | 0,942 à 0,944 (γ de 0,05 à 0,3) |
+| 10⁶ étapes, γ = 0 | 0,044 | 0,045 |
+| 10⁶ étapes, γ = 1 | 0,379 | 0,393 |
+
+Les graphiques sont pratiquement les mêmes que pour un serpent d'une case, et les
+conclusions de l'exercice 3 restent valables :
+
+- **Une partie seule** reste dominée par le bruit (−570 contre −870 : simple variation
+  d'une partie à l'autre).
+- **1000 relances** suffisent toujours à superposer deux séries indépendantes.
+- **Sur 1000 et 10 000 étapes**, toutes les valeurs γ > 0 jouent les mêmes parties, et
+  γ = 0 ne s'en distingue pas significativement. Sur 10 000 étapes, γ = 0 a la meilleure
+  moyenne, mais de 0,1 point seulement, avec un écart apparié de +0,10 ± 13,99.
+- **Sur un million d'étapes**, les meilleurs γ sont encore entre 0,05 et 0,3. γ = 0
+  plafonne, et γ = 1 monte puis redescend.
+
+### Question 4.6 - Vitesse d'accroissement de la récompense : 1 case contre 2 cases
+
+*Travail collectif*
+
+```python
+def q6(pool):
+    ...
+    n_runs = ex3.N_RUNS_LONG
+    short = {length: ex3.run_many(pool, 0.5, 10_000, n_runs, length=length) for length in (1, 2)}
+    rows, gains = [], {}
+    for length, rewards in short.items():
+        ...
+        gains[length] = rewards[:, -1000:].mean(axis=1) - rewards[:, :1000].mean(axis=1)
+        gain, ci_gain = mean_ci(gains[length])
+        ...
+    diff, ci_diff = mean_ci(gains[2] - gains[1])   # mêmes graines : écart apparié
+    ...
+    for length in (1, 2):
+        for gamma in (0.1, 0.5):
+            tasks = [(gamma, ex3.LONG_STEPS, seed, ex3.LONG_BLOCK, length)
+                     for seed in range(ex3.LONG_RUNS)]
+            blocks = np.array(list(pool.map(ex3._run_blocks, tasks)))
+            curves[length, gamma] = blocks.mean(axis=0)
+            last, ci_last = mean_ci(blocks[:, -10:].mean(axis=1))
+            zero = first_step_above(curves[length, gamma], ex3.LONG_BLOCK, 0)
+            half = first_step_above(curves[length, gamma], ex3.LONG_BLOCK, 0.5)
+            ...
+
+
+def first_step_above(curve, block, threshold):
+    """Première étape (fin de bloc) où la récompense moyenne atteint `threshold`."""
+    above = np.nonzero(curve >= threshold)[0]
+    return int((above[0] + 1) * block) if len(above) else None
+```
+
+`py ex4_long_snake.py q6` (`resultats/ex4_q6_comparaison.csv`) :
+
+| | 1 case | 2 cases |
+|---|---|---|
+| 10 000 étapes, γ = 0,5 : gain entre les 1000 premières et les 1000 dernières étapes | +0,044 ± 0,014 | +0,035 ± 0,014 |
+| 10⁶ étapes : récompense ≥ 0 atteinte à l'étape (γ = 0,1 et 0,5) | 180 000 | 180 000 |
+| 10⁶ étapes : récompense ≥ 0,5 atteinte à l'étape (γ = 0,1 et 0,5) | 330 000 | 330 000 |
+| 10⁶ étapes, γ = 0,1 : 100 000 dernières étapes | 0,948 ± 0,003 | 0,944 ± 0,004 |
+| 10⁶ étapes, γ = 0,5 : 100 000 dernières étapes | 0,938 ± 0,003 | 0,935 ± 0,004 |
+
+![Vitesse d'apprentissage, 1 case contre 2 cases](figures/ex4_q6_comparaison.png)
+
+**La récompense croît à la même vitesse avec 1 ou 2 cases.** Les courbes sur un million
+d'étapes sont superposées, et elles franchissent 0 puis 0,5 au même bloc de 10 000
+étapes. Sur 10 000 étapes, les gains (+0,044 et +0,035) ne sont pas significativement
+différents : leur écart, partie par partie, vaut −0,009 ± 0,018, et l'intervalle
+contient 0.
+
+C'est ce que prévoit la question 4.2 : l'état du serpent de 2 cases contient la même
+information que celui du serpent d'une case, puisque le cou se déduit de la direction,
+et il y a presque autant d'états (39 200 contre 39 600). La seule différence est que le
+fruit ne peut pas apparaître sur le cou, ce qui ne change presque rien à
+l'apprentissage.
+
+### Question 4.7 - Serpents plus longs et entraînements plus longs
+
+*Travail collectif*
+
+```python
+Q7_GAMMA = 0.1           # parmi les meilleures sur 1e6 étapes à l'exercice 3 (ex aequo de 0.05 à 0.3)
+Q7_STEPS = 1_000_000
+Q7_RUNS = 16
+Q7_BLOCK = 10_000
+Q7_LONG_LENGTHS = [1, 2, 3, 4]
+Q7_LONG_STEPS = 5_000_000
+Q7_LONG_RUNS = 8
+Q7_LONG_BLOCK = 50_000
+Q7_WORKERS = 16          # limite la mémoire : jusqu'à ~1 million de paires par partie
+
+
+def _train(task):
+    """Une partie ; renvoie la récompense moyenne et le taux d'auto-intersection par bloc."""
+    length, n_steps, seed, block, eps = task
+    game = ShortSnake(SIZE, seed=seed, length=length)
+    player = GreedyPlayer(game, eps, alpha=ALPHA, gamma=Q7_GAMMA, seed=1_000_000 + seed)
+    means, hits, previous = [], [], 0
+    for _ in range(n_steps // block):
+        means.append(ex3.play(player, game, block).mean())
+        hits.append((game.self_hits - previous) / block)
+        previous = game.self_hits
+    return np.array(means), np.array(hits), len(player.action_values)
+```
+
+`py ex4_long_snake.py q7` entraîne des serpents de 1, 2, 3, 4, 5, 6 et 8 cases pendant
+un million d'étapes (16 relances, γ = 0,1). Les serpents de 1 à 4 cases sont ensuite
+entraînés cinq millions d'étapes (8 relances). Le joueur aléatoire (ε = 1) sert de
+référence pour chaque longueur. Les résultats sont dans `resultats/ex4_q7_longueurs.csv`
+et `resultats/ex4_q7_5M.csv`.
+
+**Taille du problème** (`n_long_states`, grille 10 × 10, `resultats/ex4_etats.csv`) :
+
+| Longueur | Formes du corps | États | Paires (état, action) |
+|---|---|---|---|
+| 1 | 4 | 39 600 | 118 800 |
+| 2 | 4 | 39 200 | 117 600 |
+| 3 | 12 | 116 400 | 349 200 |
+| 4 | 36 | 345 600 | 1 036 800 |
+| 5 | 108 | 1 026 800 | 3 080 400 |
+| 6 | 324 | 3 050 400 | 9 151 200 |
+| 8 | 2 916 | 26 937 600 | 80 812 800 |
+
+Chaque case de plus multiplie le nombre de formes par 3 : 4 · 3<sup>L−2</sup> pour
+L ≥ 2, car le corps ne peut pas faire demi-tour. Jusqu'à 4 cases, le corps ne se recoupe
+jamais et |S| = 4 · 3<sup>L−2</sup> · N·M · (N·M − L). À partir de 5 cases, il peut
+former une boucle de 4 cases ; c'est là qu'apparaissent les auto-intersections.
+
+**Après un million d'étapes** :
+
+| Longueur | Récompense / étape (100 000 dernières) | Joueur aléatoire | Auto-intersections (agent / aléatoire) | Récompense ≥ 0 à l'étape | Paires vues |
+|---|---|---|---|---|---|
+| 1 | +0,947 ± 0,005 | −0,912 | - | 180 000 | 92,8 % |
+| 2 | +0,945 ± 0,006 | −0,912 | - | 180 000 | 93,4 % |
+| 3 | +0,615 ± 0,006 | −0,913 | - | 470 000 | 84,6 % |
+| 4 | −0,175 ± 0,006 | −0,910 | - | non atteint | 60,4 % |
+| 5 | −1,191 ± 0,005 | −1,655 | 5,40 % / 7,44 % des étapes | non atteint | 28,2 % |
+| 6 | −1,481 ± 0,008 | −1,654 | 6,64 % / 7,44 % | non atteint | 10,4 % |
+| 8 | −2,045 ± 0,011 | −2,066 | 11,41 % / 11,55 % | non atteint | 1,2 % |
+
+![Serpents de 1 à 8 cases](figures/ex4_q7_longueurs.png)
+
+**Après cinq millions d'étapes** (serpents de 1 à 4 cases) :
+
+| Longueur | Récompense / étape (100 000 dernières) | Récompense ≥ 0 à l'étape |
+|---|---|---|
+| 1 | +1,125 ± 0,004 | 200 000 |
+| 2 | +1,116 ± 0,007 | 200 000 |
+| 3 | +0,979 ± 0,006 | 500 000 |
+| 4 | +0,803 ± 0,009 | 1 300 000 |
+
+(Les étapes sont arrondies à la fin du bloc : 10 000 étapes sur un million d'étapes,
+50 000 sur cinq millions.)
+
+![Serpents de 1 à 4 cases sur cinq millions d'étapes](figures/ex4_q7_5M.png)
+
+Ce que montrent ces résultats :
+
+- **L'apprentissage ralentit avec la longueur, au rythme du nombre d'états.** Le
+  Q-Learning tabulaire ne transfère rien d'une forme du corps à une autre : une même
+  situation (tête, fruit) doit être réapprise pour chacune des 4 · 3<sup>L−2</sup>
+  formes. Il faut environ 2,5 fois plus d'étapes à 3 cases (500 000 contre 200 000) et
+  6,5 fois plus à 4 cases (1 300 000) pour atteindre une récompense positive. C'est du
+  même ordre que la croissance du nombre d'états, ×3 puis ×9.
+- **La part des paires (état, action) rencontrées s'effondre** : 93 % à 2 cases, 60 % à
+  4 cases, 1,2 % à 8 cases, après le même million d'étapes. À 8 cases, l'agent ne
+  revoit presque jamais un état et fait à peine mieux que le hasard : +0,02 point par
+  étape (−2,045 ± 0,011 contre −2,066 ± 0,012).
+- **Les auto-intersections apparaissent à partir de 5 cases.** Le joueur aléatoire se
+  mord sur 7,4 % des étapes à 5 et 6 cases, et sur 11,6 % à 8 cases. L'agent descend à
+  5,4 % à 5 cases. Cela explique un peu moins de la moitié de son avance sur le hasard :
+  0,20 point par étape (10 × (7,44 % − 5,40 %)) sur 0,46 (−1,19 contre −1,66). Le reste
+  vient des bords et des fruits.
+- **Un entraînement plus long compense en partie.** À cinq millions d'étapes, le
+  serpent de 4 cases atteint +0,80 par étape et celui de 3 cases +0,98, et les courbes
+  montent encore. Même le serpent d'une case continue de progresser (+0,95 après un
+  million d'étapes, +1,13 après cinq).
+
+**Limite pratique.** 16 parties d'un million d'étapes en parallèle prennent 12 à 14 s, et
+le tableau Q occupe environ 400 octets par paire. Les 16 parties en parallèle à 8 cases utilisent
+ainsi environ 7 Go de mémoire. Explorer vraiment les 80,8 millions de paires d'un
+serpent de 8 cases demanderait plus de 30 Go pour le seul tableau Q, au-delà des 31 Go
+de la machine. Nous nous sommes donc arrêtés à 8 cases pour un million d'étapes, et à
+4 cases pour cinq millions, où le tableau Q reste borné par le million de paires
+possibles. Aller plus loin demanderait une représentation qui généralise d'un état à
+l'autre, par exemple la position du fruit relative à la tête ou un réseau de neurones,
+plutôt qu'un tableau.

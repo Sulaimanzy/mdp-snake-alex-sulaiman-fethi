@@ -1,0 +1,6 @@
+grille,longueur,comptage,enumeration,atteignables,identiques
+4x4,2,896,896,896,True
+5x5,2,2300,2300,2300,True
+4x4,3,2496,2496,2496,True
+4x5,4,11520,11520,11520,True
+5x5,5,54200,54200,54200,True
