@@ -1,0 +1,4 @@
+etapes,paires,part_plus_d_une_fois,maximum,part_max_q_suivant_non_nul
+1000,926,0.0745,3,0.0
+10000,8917,0.1065,5,0.001
+100000,64579,0.3661,14,0.015

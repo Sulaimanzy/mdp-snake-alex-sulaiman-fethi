@@ -1,6 +1,6 @@
 # TP MDP : Snake
 
-ESGI - AL5 / T1 — Apprentissage par renforcement (Sylvain Gault).
+ESGI - AL5 / T1 - Apprentissage par renforcement (Sylvain Gault).
 
 Groupe : RUSESCU Daniel Alexandru, BAH Sulaiman, SEDJAI Fethi.
 
@@ -17,5 +17,8 @@ py -m pip install -r requirements.txt   # dépendances (génération du rapport)
 py -m unittest discover tests           # tests
 py ex1_demo.py                          # démonstration du jeu
 py ex1_demo.py --play                   # jouer au clavier (z q s d + Entrée)
+py ex2_mdp.py                           # exercice 2 : réponses et figure du MDP
+py ex3_qlearning.py play                # exercice 3 : l'IA apprend puis joue
+py ex3_qlearning.py all                 # exercice 3 : toutes les expériences (≈ 4 min sur 32 cœurs)
 py rapport/build_pdf.py                 # régénérer le rapport PDF
 ```

@@ -100,6 +100,11 @@ table { border-collapse: collapse; margin: 0.6em 0; break-inside: avoid; }
 th, td { border: 1px solid #d0d7de; padding: 4px 8px; text-align: left; vertical-align: top; }
 th { background: #f0f3f7; }
 img { max-width: 100%; break-inside: avoid; }
+.formula {
+  text-align: center; font-size: 12pt; margin: 0.8em 0; padding: 8px;
+  background: #f4f7fb; border: 1px solid #c9d3e0; border-radius: 4px;
+  font-family: "Cambria Math", Cambria, "Times New Roman", serif;
+}
 """
 
 

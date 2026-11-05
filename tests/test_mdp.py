@@ -10,16 +10,7 @@ from mdp import (
     MOVE_ARGUMENTS, actions, all_states, n_states, reachable_states, state_of,
     transitions,
 )
-from snake import DOWN, EMPTY, FRUIT, LEFT, RIGHT, SNAKE, UP, ShortSnake
-
-
-def set_state(game, state):
-    """Place la partie dans l'état `state` en gardant la grille cohérente."""
-    head, direction, fruit = state
-    game.grid = [[EMPTY] * game.n_cols for _ in range(game.n_rows)]
-    game.snake_pos, game.snake_dir, game.fruit_pos = head, direction, fruit
-    game._set_cell(head, SNAKE)
-    game._set_cell(fruit, FRUIT)
+from snake import DOWN, LEFT, RIGHT, UP, ShortSnake
 
 
 class TestStates(unittest.TestCase):
@@ -85,7 +76,7 @@ class TestTransitions(unittest.TestCase):
         for _ in range(2000):
             state = rng.choice(states)
             action = rng.choice(MOVE_ARGUMENTS)
-            set_state(game, state)
+            game.restore_state(state)
             reward = game.move(action)
             outcomes = {(s, r) for _, s, r in transitions(state, action, size)}
             self.assertIn((state_of(game), reward), outcomes)

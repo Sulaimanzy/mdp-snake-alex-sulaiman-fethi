@@ -49,10 +49,18 @@ def all_states(size):
 
 
 # Q2.4 / Q2.5 -- actions disponibles dans un état
+_LEGAL_ACTIONS = {
+    direction: [d for d in DIRECTIONS if d != OPPOSITE[direction]]
+    for direction in DIRECTIONS
+}
+
+
 def actions(state):
-    """A(s) : les quatre directions sauf le demi-tour (None équivaut à la direction courante)."""
-    direction = state[1]
-    return [d for d in DIRECTIONS if d != OPPOSITE[direction]]
+    """A(s) : les quatre directions sauf le demi-tour (None équivaut à la direction courante).
+
+    La liste renvoyée est partagée entre les appels : ne pas la modifier.
+    """
+    return _LEGAL_ACTIONS[state[1]]
 
 
 # Q2.6 -- dynamique et récompenses

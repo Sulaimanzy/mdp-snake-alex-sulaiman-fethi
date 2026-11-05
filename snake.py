@@ -4,6 +4,7 @@ Le serpent ne grandit pas et ne meurt pas : il ne fait que gagner ou perdre
 des points. C'est une tâche continue (pas d'état final).
 """
 
+import operator
 import random
 
 # Contenu possible d'une case de la grille
@@ -101,6 +102,46 @@ class ShortSnake:
 
         self.score += reward
         return reward
+
+    # Q3.1 -- sauvegarde de l'état du jeu
+    def save_state(self):
+        """Renvoie l'état actuel du jeu : (tête, direction, fruit).
+
+        C'est l'état du MDP (exercice 2) : le score n'en fait pas partie, c'est la
+        somme des récompenses déjà reçues.
+        """
+        return (self.snake_pos, self.snake_dir, self.fruit_pos)
+
+    # Q3.2 -- restauration d'un état sauvegardé
+    def _as_cell(self, pos):
+        """Convertit `pos` en tuple (ligne, colonne) d'entiers dans la grille."""
+        try:
+            row, col = (operator.index(x) for x in pos)
+        except (TypeError, ValueError):
+            raise ValueError(f"case invalide : {pos!r}") from None
+        if not (0 <= row < self.n_rows and 0 <= col < self.n_cols):
+            raise ValueError(f"case hors de la grille : {(row, col)}")
+        return (row, col)
+
+    def restore_state(self, state):
+        """Remet le jeu dans un état renvoyé par save_state (le score est inchangé).
+
+        Toutes les vérifications ont lieu avant la moindre modification du jeu.
+        """
+        try:
+            head, direction, fruit = state
+        except (TypeError, ValueError):
+            raise ValueError(f"état invalide : {state!r}") from None
+        head, fruit = self._as_cell(head), self._as_cell(fruit)
+        if not isinstance(direction, str) or direction not in DIRECTIONS:
+            raise ValueError(f"direction inconnue : {direction!r}")
+        if head == fruit:
+            raise ValueError("le fruit ne peut pas être sous le serpent")
+
+        self.grid = [[EMPTY] * self.n_cols for _ in range(self.n_rows)]
+        self.snake_pos, self.snake_dir, self.fruit_pos = head, direction, fruit
+        self._set_cell(head, SNAKE)
+        self._set_cell(fruit, FRUIT)
 
     # Q1.8 -- affichage de la grille et du score
     def __str__(self):
