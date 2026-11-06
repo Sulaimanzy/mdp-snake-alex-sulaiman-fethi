@@ -1,13 +1,13 @@
 """Exercice 3 : programme principal du Q-Learning et expériences.
 
-    py ex3_qlearning.py play [--steps 500000] [--show 15]  # Q3.9 : l'IA apprend puis joue
-    py ex3_qlearning.py q10                                # une partie de 1000 étapes
-    py ex3_qlearning.py q11                                # nombre de relances
-    py ex3_qlearning.py q12                                # gamma dans {0, 0.1, 0.5, 0.9, 1}
-    py ex3_qlearning.py q13                                # recherche du meilleur gamma
-    py ex3_qlearning.py q14                                # même recherche sur 10000 étapes
-    py ex3_qlearning.py long                               # pour aller plus loin : 1e6 étapes
-    py ex3_qlearning.py all                                # toutes les expériences
+    python ex3_qlearning.py play [--steps 500000] [--show 15]  # Q3.9 : l'IA apprend puis joue
+    python ex3_qlearning.py q10                                # une partie de 1000 étapes
+    python ex3_qlearning.py q11                                # nombre de relances
+    python ex3_qlearning.py q12                                # gamma dans {0, 0.1, 0.5, 0.9, 1}
+    python ex3_qlearning.py q13                                # recherche du meilleur gamma
+    python ex3_qlearning.py q14                                # même recherche sur 10000 étapes
+    python ex3_qlearning.py long                               # pour aller plus loin : 1e6 étapes
+    python ex3_qlearning.py all                                # toutes les expériences
 
 Les figures vont dans rapport/figures/, les résultats chiffrés dans resultats/.
 """
@@ -16,6 +16,7 @@ import argparse
 import csv
 import os
 import pathlib
+import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 
@@ -114,7 +115,7 @@ def moving_average(values, window):
 def save_csv(name, header, rows):
     RESULTS.mkdir(exist_ok=True)
     with open(RESULTS / name, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
+        writer = csv.writer(f, lineterminator="\n")   # mêmes octets sur tous les systèmes
         writer.writerow(header)
         writer.writerows(rows)
 
@@ -510,5 +511,13 @@ def main():
     print(f"Terminé en {time.perf_counter() - start:.0f} s")
 
 
+def utf8_console():
+    """Accents et symboles (γ, −) lisibles même quand la sortie est redirigée (Windows)."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):   # absent sous IDLE, None sans console (pythonw)
+            stream.reconfigure(encoding="utf-8")
+
+
 if __name__ == "__main__":
+    utf8_console()
     main()

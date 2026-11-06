@@ -1,12 +1,18 @@
 """Génère le rapport en PDF.
 
-rapport.md -> rapport.html (markdown + pygments) -> PDF (Edge ou Chrome en
-mode headless), puis ajout des numéros de page et des métadonnées (PyMuPDF).
+rapport.md -> rapport.html (markdown + pygments) -> PDF (Edge, Chrome ou Chromium
+en mode headless), puis ajout des numéros de page et des métadonnées (PyMuPDF).
 
-    py rapport/build_pdf.py
+    python rapport/build_pdf.py
+
+Pour choisir un autre navigateur Chromium, donner son chemin dans PDF_BROWSER :
+    PowerShell : $env:PDF_BROWSER = "C:\\chemin\\vers\\chrome.exe"
+    cmd        : set PDF_BROWSER=C:\\chemin\\vers\\chrome.exe
+    bash/zsh   : export PDF_BROWSER="/chemin/vers/chrome"
 """
 
 import datetime
+import os
 import pathlib
 import shutil
 import subprocess
@@ -31,12 +37,20 @@ MONTHS = [
     "août", "septembre", "octobre", "novembre", "décembre",
 ]
 
+BROWSER_ENV = "PDF_BROWSER"   # chemin d'un navigateur Chromium choisi à la main
 BROWSERS = [
+    # Windows
     r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
     r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-    "msedge", "google-chrome", "chromium", "chromium-browser", "chrome",
+    # macOS
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    # Linux, ou tout navigateur présent dans le PATH
+    "msedge", "microsoft-edge", "google-chrome", "google-chrome-stable", "chromium",
+    "chromium-browser", "chrome",
 ]
 
 CSS = """
@@ -118,6 +132,14 @@ def french_date(day):
 
 
 def find_browser():
+    chosen = os.environ.get(BROWSER_ENV, "").strip().strip('"').strip("'")
+    if chosen:
+        # Le fichier doit exister (et être exécutable avec Python ≥ 3.12 sous Windows) ;
+        # sinon le lancement échoue plus loin avec un message clair.
+        found = shutil.which(chosen)
+        if found:
+            return found
+        sys.exit(f"{BROWSER_ENV} = {chosen} : navigateur introuvable ou non exécutable.")
     for candidate in BROWSERS:
         path = pathlib.Path(candidate)
         if path.is_file():
@@ -125,7 +147,8 @@ def find_browser():
         found = shutil.which(candidate)
         if found:
             return found
-    sys.exit("Aucun navigateur Edge/Chrome trouvé pour l'impression PDF.")
+    sys.exit("Aucun navigateur Edge/Chrome/Chromium trouvé pour l'impression PDF. "
+             f"Indiquez son chemin dans la variable d'environnement {BROWSER_ENV}.")
 
 
 def build_html():
@@ -153,45 +176,69 @@ def build_html():
 
 def print_pdf(raw_pdf):
     browser = find_browser()
-    with tempfile.TemporaryDirectory() as profile:
-        subprocess.run(
-            [
-                browser, "--headless=new", "--disable-gpu", "--no-first-run",
-                "--no-pdf-header-footer", "--print-to-pdf-no-header",
-                f"--user-data-dir={profile}", f"--print-to-pdf={raw_pdf}",
-                HTML_OUT.as_uri(),
-            ],
-            check=True, timeout=180,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
+    # Dossiers temporaires sous rapport/ plutôt que /tmp : Chromium en snap (Ubuntu)
+    # n'a pas accès au /tmp du système.
+    problem = None
+    with tempfile.TemporaryDirectory(dir=HERE) as profile:
+        try:
+            subprocess.run(
+                [
+                    browser, "--headless=new", "--disable-gpu", "--no-first-run",
+                    "--no-pdf-header-footer", "--print-to-pdf-no-header",
+                    f"--user-data-dir={profile}", f"--print-to-pdf={raw_pdf}",
+                    HTML_OUT.as_uri(),
+                ],
+                check=True, timeout=180, capture_output=True, encoding="utf-8", errors="replace",
+            )
+        except subprocess.CalledProcessError as error:
+            last_lines = (error.stderr or "").strip().splitlines()[-3:]
+            problem = "\n".join([f"le navigateur s'est arrêté avec le code {error.returncode}",
+                                 *last_lines])
+        except subprocess.TimeoutExpired:
+            problem = "le navigateur n'a pas répondu en 180 s"
+        except OSError as error:
+            problem = str(error)
+    if problem:   # message donné après le nettoyage des dossiers temporaires
+        sys.exit(f"Impression PDF impossible avec {browser} : {problem}")
     if not pathlib.Path(raw_pdf).is_file():
         sys.exit("Le navigateur n'a pas produit de PDF.")
 
 
 def finalize_pdf(raw_pdf):
-    doc = pymupdf.open(raw_pdf)
-    n_pages = doc.page_count
-    for index, page in enumerate(doc):
-        if index == 0:  # pas de pied de page sur la page de garde
-            continue
-        width, height = page.rect.width, page.rect.height
-        box = pymupdf.Rect(57, height - 42, width - 57, height - 26)
-        style = {"fontsize": 8, "fontname": "helv", "color": (0.45, 0.45, 0.45)}
-        page.insert_textbox(box, FOOTER, align=pymupdf.TEXT_ALIGN_LEFT, **style)
-        page.insert_textbox(box, f"{index + 1} / {n_pages}", align=pymupdf.TEXT_ALIGN_RIGHT, **style)
-    doc.set_metadata({"title": TITLE, "author": AUTHORS, "subject": "Rapport de TP"})
-    doc.save(PDF_OUT, garbage=3, deflate=True)
-    return n_pages
+    """Ajoute les pieds de page et les métadonnées ; renvoie (octets du PDF, nombre de pages)."""
+    with pymupdf.open(raw_pdf) as doc:
+        n_pages = doc.page_count
+        for index, page in enumerate(doc):
+            if index == 0:  # pas de pied de page sur la page de garde
+                continue
+            width, height = page.rect.width, page.rect.height
+            box = pymupdf.Rect(57, height - 42, width - 57, height - 26)
+            style = {"fontsize": 8, "fontname": "helv", "color": (0.45, 0.45, 0.45)}
+            page.insert_textbox(box, FOOTER, align=pymupdf.TEXT_ALIGN_LEFT, **style)
+            page.insert_textbox(box, f"{index + 1} / {n_pages}",
+                                align=pymupdf.TEXT_ALIGN_RIGHT, **style)
+        doc.set_metadata({"title": TITLE, "author": AUTHORS, "subject": "Rapport de TP"})
+        data = doc.tobytes(garbage=3, deflate=True)
+    return data, n_pages
 
 
 def main():
     build_html()
-    with tempfile.TemporaryDirectory() as tmp:
+    with tempfile.TemporaryDirectory(dir=HERE) as tmp:
         raw_pdf = str(pathlib.Path(tmp) / "raw.pdf")
         print_pdf(raw_pdf)
-        n_pages = finalize_pdf(raw_pdf)
+        data, n_pages = finalize_pdf(raw_pdf)
+    # Écriture après le nettoyage : un PDF ouvert dans une visionneuse fait échouer
+    # l'ouverture sans tronquer le fichier existant.
+    try:
+        PDF_OUT.write_bytes(data)
+    except OSError as error:
+        sys.exit(f"Impossible d'écrire {PDF_OUT} ({error.strerror}). Fermez le PDF s'il est ouvert.")
     print(f"{PDF_OUT} ({n_pages} pages)")
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):   # accents lisibles même si la sortie est redirigée
+        if hasattr(stream, "reconfigure"):    # absent sous IDLE, None sans console (pythonw)
+            stream.reconfigure(encoding="utf-8")
     main()

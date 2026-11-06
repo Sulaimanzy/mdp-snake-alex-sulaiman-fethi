@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 .venv/
 rapport/rapport.html
+rapport/tmp*/

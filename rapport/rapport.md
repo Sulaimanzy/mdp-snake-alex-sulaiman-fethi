@@ -30,23 +30,50 @@ chaque question renvoie à cette répartition commune.</p>
 
 ## Reproduction des résultats
 
-- Python 3.14 (toute version ≥ 3.8 convient). Le jeu et le modèle MDP n'ont besoin
-  d'aucune dépendance ; `matplotlib` sert aux figures, `markdown`, `pygments` et
-  `pymupdf` à générer ce rapport.
-- Depuis la racine du dépôt :
+- Python 3.9 au minimum, version exigée par `matplotlib` 3.8. Le projet a été développé
+  et testé avec Python 3.14 sous Windows. Le jeu et le modèle MDP n'ont besoin
+  d'aucune dépendance ; `numpy` sert aux expériences et aux tests, `matplotlib` aux
+  figures, `markdown`, `pygments` et `pymupdf` à générer ce rapport.
+- Installation dans un environnement virtuel, depuis la racine du dépôt :
+
+```text
+Windows (PowerShell)
+  py -m venv .venv
+  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+  .venv\Scripts\Activate.ps1
+  python -m pip install -r requirements.txt
+
+macOS / Linux
+  python3 -m venv .venv
+  source .venv/bin/activate
+  python -m pip install -r requirements.txt
+```
+
+Sous Windows, `python -m venv .venv` remplace la première ligne si le lanceur `py` est
+absent. `Set-ExecutionPolicy` n'autorise l'activation que pour la fenêtre en cours ; dans
+l'invite de commandes (cmd), on active avec `.venv\Scripts\activate.bat`. Sous Debian ou
+Ubuntu, il faut d'abord installer le paquet `python3-venv`.
+
+- Une fois l'environnement activé, sur tous les systèmes :
 
 ```bash
-py -m pip install -r requirements.txt   # dépendances (figures et rapport)
-py -m unittest discover tests           # tests du jeu, du modèle MDP, du joueur et des statistiques
-py ex1_demo.py                          # exercice 1 : partie scriptée
-py ex1_demo.py --play                   # exercice 1 : jouer au clavier (z q s d + Entrée)
-py ex2_mdp.py                           # exercice 2 : réponses calculées + figure du MDP
-py ex3_qlearning.py play                # exercice 3 : l'IA apprend puis on la regarde jouer
-py ex3_qlearning.py all                 # exercice 3 : toutes les expériences (≈ 4 min sur 32 cœurs)
-py ex4_long_snake.py demo               # exercice 4 : un serpent de 5 cases se mord la queue
-py ex4_long_snake.py all                # exercice 4 : toutes les expériences (≈ 9 min, ≈ 7 Go de RAM)
-py rapport/build_pdf.py                 # régénère ce rapport en PDF
+python -m unittest discover tests      # tests (jeu, modèle MDP, joueur, statistiques)
+python ex1_demo.py                     # exercice 1 : partie scriptée
+python ex1_demo.py --play              # exercice 1 : jouer au clavier (z q s d + Entrée)
+python ex2_mdp.py                      # exercice 2 : réponses calculées + figure du MDP
+python ex3_qlearning.py play           # exercice 3 : l'IA apprend puis on la regarde jouer
+python ex3_qlearning.py all            # exercice 3 : tout (≈ 4 min sur 32 cœurs)
+python ex4_long_snake.py demo          # exercice 4 : un serpent de 5 cases se mord la queue
+python ex4_long_snake.py all           # exercice 4 : tout (≈ 9 min, 32 cœurs, 7 Go)
+python rapport/build_pdf.py            # régénère ce rapport en PDF
 ```
+
+- La génération du PDF imprime la page avec Edge, Chrome ou Chromium, cherchés aux
+  emplacements habituels sous Windows, macOS et Linux. Un autre navigateur peut être
+  indiqué dans la variable d'environnement `PDF_BROWSER`
+  (PowerShell : `$env:PDF_BROWSER = "C:\chemin\vers\chrome.exe"` ;
+  cmd : `set PDF_BROWSER=C:\chemin\vers\chrome.exe` ;
+  bash : `export PDF_BROWSER="/chemin/vers/chrome"`).
 
 Les expériences de l'exercice 3 peuvent aussi être lancées une à une
 (`q10`, `q11`, `q12`, `q13`, `q14`, `long`). Toutes les graines aléatoires sont fixées :
@@ -70,7 +97,7 @@ Fichiers :
 | `tests/test_qlearning.py` | tests de `save_state`/`restore_state`, du joueur et du programme principal |
 | `tests/test_long_snake.py` | tests du serpent de plusieurs cases (jeu, modèle, comptage, joueur) |
 | `rapport/rapport.md` | source de ce rapport |
-| `rapport/build_pdf.py` | conversion du rapport en PDF (Markdown → HTML → PDF via Edge ou Chrome) |
+| `rapport/build_pdf.py` | conversion du rapport en PDF (Markdown → HTML → PDF via Edge, Chrome ou Chromium) |
 
 ---
 
@@ -250,7 +277,7 @@ CELL_SYMBOL = {EMPTY: ".", FRUIT: "*"}
 ```
 
 La tête est dessinée par une flèche qui indique sa direction. Extrait de
-`py ex1_demo.py` (grille 5 × 8, graine 42) :
+`python ex1_demo.py` (grille 5 × 8, graine 42) :
 
 ```text
 Étape 5 : move(UP) -> récompense +10 (on mange le fruit : +10)
@@ -283,7 +310,7 @@ de la grille, affichage).
 ## Exercice 2 - Modélisation du MDP
 
 Le modèle est codé dans `mdp.py` ; `ex2_mdp.py` en déduit les réponses. Sortie de
-`py ex2_mdp.py` :
+`python ex2_mdp.py` :
 
 ```text
 Q2.1  état = (tête, direction, fruit) = ((5, 5), 'RIGHT', (4, 9))
@@ -549,8 +576,8 @@ rien apprendre.
             raise ValueError(f"direction inconnue : {direction!r}")
         if fruit == head or fruit in body:
             raise ValueError("le fruit ne peut pas être sous le serpent")
-        if body:
-            self._check_body(head, direction, body)   # exercice 4
+        if self.length > 1:   # même un corps vide doit être vérifié (exercice 4)
+            self._check_body(head, direction, body)
 
         self.grid = [[EMPTY] * self.n_cols for _ in range(self.n_rows)]
         self.snake_pos, self.snake_dir, self.fruit_pos = head, direction, fruit
@@ -766,7 +793,7 @@ def run(gamma, n_steps, seed, eps=EPS, alpha=ALPHA):
 
 La boucle reprend celle du TP précédent : choisir une action, la jouer, transmettre la
 récompense. `run_many` relance `run` sur plusieurs graines en parallèle
-(`ProcessPoolExecutor`). La commande `py ex3_qlearning.py play` entraîne l'IA pendant
+(`ProcessPoolExecutor`). La commande `python ex3_qlearning.py play` entraîne l'IA pendant
 500 000 étapes, puis affiche quelques coups joués sans exploration :
 
 ```text
@@ -810,7 +837,7 @@ def q10(pool):
     ...
 ```
 
-`py ex3_qlearning.py q10` :
+`python ex3_qlearning.py q10` :
 
 ```text
 Q3.10 : une partie de 1000 étapes, γ = 0.5
@@ -899,7 +926,7 @@ def identical_runs(rewards, reference):
     return int(np.all(rewards == reference, axis=1).sum())
 ```
 
-`py ex3_qlearning.py q12` (1000 étapes, 1000 relances, mêmes graines pour chaque γ) :
+`python ex3_qlearning.py q12` (1000 étapes, 1000 relances, mêmes graines pour chaque γ) :
 
 | γ | Récompense totale moyenne (IC 95 %) | Parties identiques à celles de γ = 0,5 |
 |---|---|---|
@@ -995,7 +1022,7 @@ def verdict(diff, ci):
     return "significatif" if abs(diff) > ci else "non significatif"
 ```
 
-`py ex3_qlearning.py q13` balaie γ de 0 à 1 par pas de 0,05, avec 1000 relances de 1000
+`python ex3_qlearning.py q13` balaie γ de 0 à 1 par pas de 0,05, avec 1000 relances de 1000
 étapes (`resultats/ex3_q13_recherche.csv`). La meilleure valeur est choisie sur les
 moyennes non arrondies, et chaque γ est comparé à γ = 0,5 **partie par partie** : les
 mêmes graines sont utilisées pour tous les γ, ce qui retire le bruit commun.
@@ -1024,7 +1051,7 @@ def q14(pool, rows_1000=None):
     compare_gammas(pool, 10_000, N_RUNS_LONG, 500, "ex3_q14_gammas_10000.png", ...)
 ```
 
-`py ex3_qlearning.py q14` :
+`python ex3_qlearning.py q14` :
 
 | γ | Récompense totale moyenne sur 10 000 étapes (IC 95 %) | Parties identiques à γ = 0,5 | Écart apparié avec γ = 0,5 |
 |---|---|---|---|
@@ -1047,7 +1074,7 @@ par étape passe d'environ −0,83 à −0,78, alors que le joueur aléatoire re
 *Travail collectif*
 
 Pour savoir quand γ commence à compter, nous avons prolongé l'entraînement à un million
-d'étapes (32 relances par valeur de γ, `py ex3_qlearning.py long`).
+d'étapes (32 relances par valeur de γ, `python ex3_qlearning.py long`).
 
 ```python
 LONG_STEPS = 1_000_000
@@ -1200,7 +1227,7 @@ et N·M − 2 cases libres pour le fruit.
 du serpent d'une case. La seconde case n'ajoute aucune information, puisqu'elle se
 déduit de la direction, mais elle retire une case au fruit.
 
-Le comptage est vérifié par le code (`py ex4_long_snake.py q2`). Le contrôle
+Le comptage est vérifié par le code (`python ex4_long_snake.py q2`). Le contrôle
 indépendant est l'accessibilité : sur de petites grilles, un parcours en largeur du
 modèle (lui-même vérifié contre le jeu par les tests) part de l'état initial et atteint
 exactement les états comptés, ni plus ni moins (`resultats/ex4_accessibilite.csv`) :
@@ -1270,7 +1297,7 @@ pour l'exercice 2, un test joue des coups au hasard depuis des états quelconque
 vérifie que le jeu donne toujours un résultat prévu par le modèle
 (`tests/test_long_snake.py`, 18 tests).
 
-`py ex4_long_snake.py demo` montre l'auto-intersection d'un serpent de 5 cases, qui
+`python ex4_long_snake.py demo` montre l'auto-intersection d'un serpent de 5 cases, qui
 fait un carré et se mord la queue :
 
 ```text
@@ -1330,7 +1357,7 @@ def q5(pool):
 Les fonctions de l'exercice 3 prennent un paramètre `length`. Les graphiques sont donc
 produits par exactement le même code, avec les mêmes graines, les mêmes relances et les
 mêmes hyperparamètres (ε = 0,1, α = 0,5). Seule la longueur du serpent change
-(`py ex4_long_snake.py q5`, résultats dans `resultats/ex4_*.csv`).
+(`python ex4_long_snake.py q5`, résultats dans `resultats/ex4_*.csv`).
 
 <div class="fig-grid">
 <figure><img src="figures/ex4_q10_une_partie.png" alt="Une partie de 1000 étapes"><figcaption>Une partie de 1000 étapes (comme 3.10)</figcaption></figure>
@@ -1403,7 +1430,7 @@ def first_step_above(curve, block, threshold):
     return int((above[0] + 1) * block) if len(above) else None
 ```
 
-`py ex4_long_snake.py q6` (`resultats/ex4_q6_comparaison.csv`) :
+`python ex4_long_snake.py q6` (`resultats/ex4_q6_comparaison.csv`) :
 
 | | 1 case | 2 cases |
 |---|---|---|
@@ -1456,7 +1483,7 @@ def _train(task):
     return np.array(means), np.array(hits), len(player.action_values)
 ```
 
-`py ex4_long_snake.py q7` entraîne des serpents de 1, 2, 3, 4, 5, 6 et 8 cases pendant
+`python ex4_long_snake.py q7` entraîne des serpents de 1, 2, 3, 4, 5, 6 et 8 cases pendant
 un million d'étapes (16 relances, γ = 0,1). Les serpents de 1 à 4 cases sont ensuite
 entraînés cinq millions d'étapes (8 relances). Le joueur aléatoire (ε = 1) sert de
 référence pour chaque longueur. Les résultats sont dans `resultats/ex4_q7_longueurs.csv`

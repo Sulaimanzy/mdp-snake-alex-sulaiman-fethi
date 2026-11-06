@@ -1,11 +1,11 @@
 """Exercice 4 (bonus) : serpent plus long.
 
-    py ex4_long_snake.py demo   # Q4.3 : un serpent de 5 cases se mord la queue
-    py ex4_long_snake.py q2     # Q4.1-Q4.2 : nombre d'états (formule, énumération, accessibilité)
-    py ex4_long_snake.py q5     # Q4.5 : graphiques de l'exercice 3 pour un serpent de 2 cases
-    py ex4_long_snake.py q6     # Q4.6 : vitesse d'apprentissage, 1 case contre 2 cases
-    py ex4_long_snake.py q7     # Q4.7 : serpents de 1 à 8 cases, entraînements longs
-    py ex4_long_snake.py all    # tout (≈ 9 min sur 32 cœurs, ≈ 7 Go de RAM)
+    python ex4_long_snake.py demo   # Q4.3 : un serpent de 5 cases se mord la queue
+    python ex4_long_snake.py q2     # Q4.1-Q4.2 : nombre d'états (formule, énumération, accessibilité)
+    python ex4_long_snake.py q5     # Q4.5 : graphiques de l'exercice 3 pour un serpent de 2 cases
+    python ex4_long_snake.py q6     # Q4.6 : vitesse d'apprentissage, 1 case contre 2 cases
+    python ex4_long_snake.py q7     # Q4.7 : serpents de 1 à 8 cases, entraînements longs
+    python ex4_long_snake.py all    # tout (≈ 9 min sur 32 cœurs, ≈ 7 Go de RAM)
 
 Les figures vont dans rapport/figures/, les résultats chiffrés dans resultats/.
 """
@@ -289,4 +289,5 @@ def main():
 
 
 if __name__ == "__main__":
+    ex3.utf8_console()
     main()

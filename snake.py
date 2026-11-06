@@ -173,7 +173,7 @@ class ShortSnake:
             raise ValueError(f"direction inconnue : {direction!r}")
         if fruit == head or fruit in body:
             raise ValueError("le fruit ne peut pas être sous le serpent")
-        if body:
+        if self.length > 1:   # même un corps vide doit être vérifié (longueur)
             self._check_body(head, direction, body)
 
         self.grid = [[EMPTY] * self.n_cols for _ in range(self.n_rows)]

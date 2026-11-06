@@ -1,9 +1,10 @@
 """Exercice 2 : réponses calculées à partir du modèle MDP et figure du MDP partiel.
 
-    py ex2_mdp.py    # affiche les réponses et crée rapport/figures/ex2_mdp.png
+    python ex2_mdp.py    # affiche les réponses et crée rapport/figures/ex2_mdp.png
 """
 
 import pathlib
+import sys
 from fractions import Fraction
 
 import matplotlib
@@ -195,5 +196,8 @@ def draw_mdp_figure(path):
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):   # accents lisibles même si la sortie est redirigée
+        if hasattr(stream, "reconfigure"):    # absent sous IDLE, None sans console (pythonw)
+            stream.reconfigure(encoding="utf-8")
     print_answers()
     draw_mdp_figure(FIGURE)

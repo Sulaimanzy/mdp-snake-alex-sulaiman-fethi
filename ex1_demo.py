@@ -1,7 +1,7 @@
 """Exercice 1 : démonstration du jeu de base.
 
-    py ex1_demo.py           # partie scriptée (bords, demi-tour, fruit)
-    py ex1_demo.py --play    # jouer au clavier (z q s d + Entrée)
+    python ex1_demo.py           # partie scriptée (bords, demi-tour, fruit)
+    python ex1_demo.py --play    # jouer au clavier (z q s d + Entrée)
 """
 
 import sys
@@ -36,7 +36,11 @@ def play():
     print("z/q/s/d pour tourner, Entrée pour continuer tout droit, x pour quitter.")
     while True:
         print(game)
-        key = input("> ").strip().lower()
+        try:
+            key = input("> ").strip().lower()
+        except (EOFError, KeyboardInterrupt):   # Ctrl+D, Ctrl+Z ou Ctrl+C
+            print()
+            break
         if key == "x":
             break
         if key not in KEYS:
@@ -48,6 +52,9 @@ def play():
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):   # accents lisibles même si la sortie est redirigée
+        if hasattr(stream, "reconfigure"):    # absent sous IDLE, None sans console (pythonw)
+            stream.reconfigure(encoding="utf-8")
     if "--play" in sys.argv:
         play()
     else:

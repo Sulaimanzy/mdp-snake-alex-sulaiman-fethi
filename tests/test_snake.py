@@ -1,6 +1,6 @@
 """Tests de l'exercice 1 : mécanique de base de ShortSnake.
 
-Lancement depuis la racine du dépôt : py -m unittest discover tests
+Lancement depuis la racine du dépôt : python -m unittest discover tests
 """
 
 import unittest

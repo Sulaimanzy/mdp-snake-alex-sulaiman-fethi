@@ -1,6 +1,6 @@
 """Tests de l'exercice 3 : save_state / restore_state, GreedyPlayer et programme principal.
 
-Lancement depuis la racine du dépôt : py -m unittest discover tests
+Lancement depuis la racine du dépôt : python -m unittest discover tests
 """
 
 import unittest

@@ -1,0 +1,3 @@
+# Les CSV produits par les scripts ont des fins de ligne LF (save_csv) : ils restent
+# ainsi dans la copie de travail, quel que soit le réglage core.autocrlf.
+resultats/*.csv text eol=lf

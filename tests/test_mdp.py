@@ -1,6 +1,6 @@
 """Tests de l'exercice 2 : le modèle MDP est cohérent avec le jeu.
 
-Lancement depuis la racine du dépôt : py -m unittest discover tests
+Lancement depuis la racine du dépôt : python -m unittest discover tests
 """
 
 import random

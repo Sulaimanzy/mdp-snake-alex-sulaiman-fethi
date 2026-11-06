@@ -1,6 +1,6 @@
 """Tests de l'exercice 4 : serpent de longueur L ≥ 2.
 
-Lancement depuis la racine du dépôt : py -m unittest discover tests
+Lancement depuis la racine du dépôt : python -m unittest discover tests
 """
 
 import random
@@ -112,6 +112,7 @@ class TestLongSnakeGame(unittest.TestCase):
                       ((5, 5), RIGHT, (0, 0), ((5, 4), (7, 4))),        # cases non voisines
                       ((5, 5), RIGHT, (5, 3), ((5, 4), (5, 3))),        # fruit sur le corps
                       ((5, 5), RIGHT, (0, 0), ((5, 4), (5, 5))),        # demi-tour dans le corps
+                      ((5, 5), RIGHT, (0, 0), ()),                       # corps vide
                       ((5, 5), RIGHT, (0, 0))):                          # corps absent
             with self.assertRaises(ValueError):
                 game.restore_state(state)
